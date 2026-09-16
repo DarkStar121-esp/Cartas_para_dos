@@ -15,3 +15,7 @@ extension GenderX on Gender {
         Gender.female => 'Mujer',
       };
 }
+
+extension GenderHexExt on Gender {
+  String get defaultBackgroundHex => '#E0E0E0';
+}
