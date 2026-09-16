@@ -28,6 +28,31 @@ Si no querés instalar Android Studio localmente, podés compilar en la nube con
 (este último es de Expo/React Native, no aplica si te quedás con Flutter — para
 Flutter, Codemagic tiene un free tier y es la opción más directa).
 
+## Probar la app de punta a punta (sin Firebase)
+
+Desde `flutter run`, la app arranca en la pantalla de login, no en el
+catálogo de juegos — ese cambió de lugar (ver MULTIPLAYER.md sección 1).
+Con el backend en memoria (`MockAuthService` + `InMemoryPairingRepository`
++ `InMemoryGameSessionRepository`, ya cableados en `main.dart`) se puede
+recorrer TODO el flujo desde un solo dispositivo:
+
+1. Tocar "Continuar con Google" (no abre nada real, genera una cuenta de
+   prueba al toque) y completar el alta.
+2. En la pantalla de pairing, tocar el botón flotante 🐛 (abajo a la
+   derecha, solo visible en modo debug) → "Crear cuenta de prueba nueva".
+   Guardar o anotar el código que le tocó a esa segunda cuenta.
+3. Tocar "Ingresar el código de mi pareja", pegar ese código y enviar.
+4. Tocar 🐛 de nuevo y saltar a la cuenta de prueba recién creada — ahí
+   va a aparecer la solicitud pendiente con el aviso de irreversibilidad.
+   Aceptar y completar los datos de la relación.
+5. Ya emparejados: se puede seguir usando 🐛 para saltar entre las dos
+   cuentas en cualquier momento, incluso en medio de una partida, y
+   revisar ambas perspectivas del multijugador (mi mano / la de mi
+   pareja, quién tiene el turno, los cantos de Truco, etc).
+
+Nada de esto reemplaza probar con dos celulares reales una vez conectado
+Firebase — es solo para revisar la UI y la integración sin desplegar nada.
+
 ## Setup de Firebase (cuentas, pairing y progresión)
 
 El sistema de cuentas descrito en `ACCOUNTS_AND_PROGRESSION.md` necesita un
@@ -41,11 +66,16 @@ el suyo):
 4. Crear una base de **Firestore** (modo producción).
 5. Correr `flutterfire configure` (requiere el paquete `flutterfire_cli`)
    para generar `lib/firebase_options.dart` automáticamente.
-6. Implementar `AuthService` (`lib/core/auth/auth_service.dart`) y
-   `PairingRepository` (`lib/core/pairing/pairing_repository.dart`) contra
-   Firebase — hoy son interfaces con TODOs, están pensadas para poder
-   desarrollar y probar toda la UI antes de tener el proyecto de Firebase
-   armado.
+6. Implementar contra Firebase, sin tocar el resto de la app (todo está
+   detrás de interfaces para esto):
+   - `AuthService` (`lib/core/auth/auth_service.dart`) — reemplaza `MockAuthService`.
+   - `PairingRepository` (`lib/core/pairing/pairing_repository.dart`) — reemplaza `InMemoryPairingRepository`.
+   - `GameSessionRepository` para el multijugador — ya tiene una implementación
+     de referencia (`FirestoreGameSessionRepository`, en
+     `lib/core/multiplayer/game_session_repository.dart`); revisarla contra
+     un proyecto real antes de confiar en ella a ciegas. Reemplaza
+     `InMemoryGameSessionRepository` en `main.dart`.
+   - Ver MULTIPLAYER.md para el detalle de cómo encajan estas tres piezas.
 7. Desplegar `functions/dailyProgressionTick.ts` (requiere `firebase init
    functions` y `firebase deploy --only functions`).
 
@@ -66,15 +96,17 @@ un "pop" de escala al jugar una carta a la mesa.
 
 | Juego | Estado |
 |---|---|
-| UNO | ✅ Jugable (pasar y jugar, 2 jugadores) |
-| En Palabras | ✅ Jugable (contrarreloj) |
-| Chinchón | ✅ Jugable (pasar y jugar, 2 jugadores) — ver simplificaciones en el header de `chinchon_engine.dart` |
-| Truco | ✅ Jugable (1 contra 1) — envido/truco simplificados, sin Flor; ver header de `truco_engine.dart` |
+| UNO | ✅ Jugable — multijugador real entre 2 celulares (ver MULTIPLAYER.md) |
+| En Palabras | ✅ Jugable — multijugador con roles (describe/adivina) |
+| Chinchón | ✅ Jugable — multijugador; simplificaciones en el header de `chinchon_engine.dart` |
+| Truco | ✅ Jugable — multijugador 1 contra 1; envido/truco simplificados, sin Flor, ver header de `truco_engine.dart` |
 | Escoba del 15 | 🚧 Módulo registrado, falta motor de reglas |
 | Conectados | 🚧 Módulo registrado, falta contenido y pantalla |
 | Climax Club | 🚧 Módulo registrado, falta contenido y pantalla |
-| Cuentas (alta, Google Sign-In) | 🚧 UI y modelo listos, falta conectar Firebase (`AuthService`) |
-| Pairing (código / WiFi) | 🚧 UI y modelo listos, falta conectar Firebase (`PairingRepository`); WiFi sin implementar |
+| Login (Google) + alta de cuenta | ✅ Flujo completo con `MockAuthService`; falta conectar Firebase real |
+| Pairing (código / WiFi) | ✅ Flujo completo (solicitud → aviso irreversible → confirmación) con `InMemoryPairingRepository`; WiFi sin implementar; falta Firebase real |
+| Multijugador (sincronización entre celulares) | ✅ Arquitectura completa (`GameSyncController` + `GameSessionRepository`), ver MULTIPLAYER.md; falta Firebase real para jugar en 2 celulares de verdad |
+| Perfil (ver progresión) | ✅ Pantalla completa: avatares, nivel/XP/racha, victorias/apodos, acceso a personalización |
 | Progresión (XP, niveles, racha) | ✅ Lógica pura completa y testeable (`XpService`); falta el cron server-side |
 | Personalización (avatares/fuentes/banners) | ✅ Modelo + UI completos; faltan los assets de arte de los animales |
 | Victorias/derrotas y apodos | ✅ Lógica completa (`NicknameService`) + widget (`CoupleStatusCard`) |

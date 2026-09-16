@@ -18,6 +18,13 @@ class UnoCard {
       color == other.color ||
       value == other.value;
 
+  Map<String, dynamic> toJson() => {'color': color.name, 'value': value.name};
+
+  factory UnoCard.fromJson(Map<String, dynamic> json) => UnoCard(
+        UnoColor.values.byName(json['color'] as String),
+        UnoValue.values.byName(json['value'] as String),
+      );
+
   @override
   String toString() => '${color.name}-${value.name}';
 }
@@ -44,6 +51,44 @@ class UnoEngine {
     _dealInitialHands();
     // La primera carta del descarte no debería ser un comodín +4.
     discardPile.add(drawPile.removeLast());
+  }
+
+  /// Constructor "vacío" usado solo por [UnoEngine.fromJson] — no
+  /// baraja ni reparte nada, lo llena todo el propio fromJson.
+  UnoEngine._empty(this.playerCount) : hands = List.generate(playerCount, (_) => <UnoCard>[]);
+
+  /// Serializa TODO el estado del motor a JSON plano, para poder
+  /// mandarlo al otro dispositivo (ver core/multiplayer/).
+  Map<String, dynamic> toJson() => {
+        'playerCount': playerCount,
+        'drawPile': [for (final c in drawPile) c.toJson()],
+        'discardPile': [for (final c in discardPile) c.toJson()],
+        'hands': [
+          for (final h in hands) [for (final c in h) c.toJson()],
+        ],
+        'currentPlayer': currentPlayer,
+        'direction': direction,
+        'winner': winner,
+      };
+
+  factory UnoEngine.fromJson(Map<String, dynamic> json) {
+    final engine = UnoEngine._empty(json['playerCount'] as int);
+    engine.drawPile.addAll([
+      for (final c in json['drawPile'] as List) UnoCard.fromJson(Map<String, dynamic>.from(c as Map)),
+    ]);
+    engine.discardPile.addAll([
+      for (final c in json['discardPile'] as List) UnoCard.fromJson(Map<String, dynamic>.from(c as Map)),
+    ]);
+    final handsJson = json['hands'] as List;
+    for (var i = 0; i < handsJson.length; i++) {
+      engine.hands[i].addAll([
+        for (final c in handsJson[i] as List) UnoCard.fromJson(Map<String, dynamic>.from(c as Map)),
+      ]);
+    }
+    engine.currentPlayer = json['currentPlayer'] as int;
+    engine.direction = json['direction'] as int;
+    engine.winner = json['winner'] as int?;
+    return engine;
   }
 
   UnoCard get topCard => discardPile.last;

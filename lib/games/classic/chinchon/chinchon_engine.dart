@@ -36,6 +36,59 @@ class ChinchonEngine {
     _startNewRound(random);
   }
 
+  /// Constructor "vacío" usado solo por [ChinchonEngine.fromJson].
+  ChinchonEngine._empty(this.playerCount)
+      : hands = List.generate(playerCount, (_) => <SpanishCard>[]),
+        totalScores = List.filled(playerCount, 0);
+
+  /// Serializa el estado para mandarlo al otro dispositivo (ver
+  /// core/multiplayer/). No incluye [lastRoundBreakdown]: es más simple
+  /// recalcularlo localmente con ChinchonMelds.bestPartition a partir de
+  /// las manos ya sincronizadas que serializar un MeldResult completo.
+  Map<String, dynamic> toJson() => {
+        'playerCount': playerCount,
+        'hands': [
+          for (final h in hands) [for (final c in h) c.toJson()],
+        ],
+        'drawPile': [for (final c in drawPile) c.toJson()],
+        'discardPile': [for (final c in discardPile) c.toJson()],
+        'totalScores': totalScores,
+        'currentPlayer': currentPlayer,
+        'roundOver': roundOver,
+        'roundWinner': roundWinner,
+        'roundWinnerHadChinchon': roundWinnerHadChinchon,
+      };
+
+  factory ChinchonEngine.fromJson(Map<String, dynamic> json) {
+    final engine = ChinchonEngine._empty(json['playerCount'] as int);
+    final handsJson = json['hands'] as List;
+    for (var i = 0; i < handsJson.length; i++) {
+      engine.hands[i].addAll([
+        for (final c in handsJson[i] as List) SpanishCard.fromJson(Map<String, dynamic>.from(c as Map)),
+      ]);
+    }
+    engine.drawPile.addAll([
+      for (final c in json['drawPile'] as List) SpanishCard.fromJson(Map<String, dynamic>.from(c as Map)),
+    ]);
+    engine.discardPile.addAll([
+      for (final c in json['discardPile'] as List) SpanishCard.fromJson(Map<String, dynamic>.from(c as Map)),
+    ]);
+    final scoresJson = json['totalScores'] as List;
+    for (var i = 0; i < scoresJson.length; i++) {
+      engine.totalScores[i] = scoresJson[i] as int;
+    }
+    engine.currentPlayer = json['currentPlayer'] as int;
+    engine.roundOver = json['roundOver'] as bool;
+    engine.roundWinner = json['roundWinner'] as int?;
+    engine.roundWinnerHadChinchon = json['roundWinnerHadChinchon'] as bool?;
+    if (engine.roundOver) {
+      engine.lastRoundBreakdown = {
+        for (var p = 0; p < engine.playerCount; p++) p: ChinchonMelds.bestPartition(engine.hands[p]),
+      };
+    }
+    return engine;
+  }
+
   void _startNewRound(Random? random) {
     final deck = generateSpanishDeck()..shuffle(random ?? Random());
     drawPile

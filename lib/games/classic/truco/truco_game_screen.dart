@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../shared/spanish_deck.dart';
-import '../../../widgets/cards/spanish_card_face.dart';
+import 'package:provider/provider.dart';
+import '../../../core/app_session.dart';
+import '../../../core/multiplayer/game_session.dart';
+import '../../../core/multiplayer/game_sync_controller.dart';
 import '../../../widgets/cards/card_animations.dart';
+import '../../../widgets/cards/spanish_card_face.dart';
+import '../../shared/spanish_deck.dart';
 import 'truco_engine.dart';
 
 class TrucoGameScreen extends StatefulWidget {
@@ -12,23 +16,48 @@ class TrucoGameScreen extends StatefulWidget {
 }
 
 class _TrucoGameScreenState extends State<TrucoGameScreen> {
-  late TrucoEngine _engine;
+  late final GameSyncController<TrucoEngine> _controller;
+  TrucoEngine? _engine;
+  bool _manoDialogShown = false;
 
   @override
   void initState() {
     super.initState();
-    _engine = TrucoEngine();
+    final session = context.read<AppSession>();
+    final couple = session.couple!;
+    _controller = GameSyncController<TrucoEngine>(
+      repository: session.gameSessionRepository,
+      sessionId: buildGameSessionId(couple.id, 'truco'),
+      coupleId: couple.id,
+      gameId: 'truco',
+      myPlayerIndex: session.myPlayerIndex,
+      decode: TrucoEngine.fromJson,
+      encode: (e) => e.toJson(),
+    );
+    _controller.connect(buildInitialState: () => TrucoEngine());
+    _controller.stream.listen((engine) {
+      setState(() => _engine = engine);
+      if (engine.phase == TrucoPhase.manoFinished && !_manoDialogShown) {
+        _manoDialogShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _showManoResult());
+      } else if (engine.phase == TrucoPhase.playing) {
+        _manoDialogShown = false;
+      }
+    });
   }
 
-  void _afterAction(VoidCallback action) {
-    setState(action);
-    if (_engine.phase == TrucoPhase.manoFinished) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _showManoResult());
-    }
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
+
+  int get _myIndex => context.read<AppSession>().myPlayerIndex;
 
   void _showManoResult() {
-    if (_engine.phase == TrucoPhase.gameFinished) {
+    final engine = _engine!;
+    final myIndex = _myIndex;
+    if (engine.phase == TrucoPhase.gameFinished) {
       _showGameOver();
       return;
     }
@@ -36,13 +65,13 @@ class _TrucoGameScreenState extends State<TrucoGameScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: Text('Jugador ${_engine.manoWinner! + 1} se llevó la mano'),
-        content: Text('Puntaje: ${_engine.scores[0]} - ${_engine.scores[1]}'),
+        title: Text(engine.manoWinner == myIndex ? 'Ganaste la mano' : 'Tu pareja se llevó la mano'),
+        content: Text('Puntaje: ${engine.scores[0]} - ${engine.scores[1]}'),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              setState(() => _engine.startNextMano());
+              if (myIndex == 0) _controller.act((e) => e.startNextMano());
             },
             child: const Text('Siguiente mano'),
           ),
@@ -52,16 +81,18 @@ class _TrucoGameScreenState extends State<TrucoGameScreen> {
   }
 
   void _showGameOver() {
+    final engine = _engine!;
+    final myIndex = _myIndex;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('¡Jugador ${_engine.gameWinner! + 1} ganó la partida! 🏆'),
-        content: Text('${_engine.scores[0]} - ${_engine.scores[1]}'),
+        title: Text(engine.gameWinner == myIndex ? '¡Ganaste la partida! 🏆' : 'Tu pareja ganó la partida'),
+        content: Text('${engine.scores[0]} - ${engine.scores[1]}'),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              setState(() => _engine = TrucoEngine());
+              if (myIndex == 0) _controller.replaceState(TrucoEngine());
             },
             child: const Text('Jugar de nuevo'),
           ),
@@ -72,8 +103,16 @@ class _TrucoGameScreenState extends State<TrucoGameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final current = _engine.currentPlayer;
-    final hand = _engine.hands[current];
+    final engine = _engine;
+    final myIndex = context.watch<AppSession>().myPlayerIndex;
+
+    if (engine == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final myTurn = engine.currentPlayer == myIndex;
+    final hand = engine.hands[myIndex];
+    final opponentCount = engine.hands[1 - myIndex].length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Truco')),
@@ -82,14 +121,14 @@ class _TrucoGameScreenState extends State<TrucoGameScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
-              'Puntos: ${_engine.scores[0]} - ${_engine.scores[1]}  ·  Mano: Jugador ${_engine.manoPlayer + 1}',
+              'Puntos: ${engine.scores[0]} - ${engine.scores[1]}  ·  Pareja: $opponentCount cartas',
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
-          Expanded(child: _buildTable(context)),
-          _buildCantoBar(context),
+          Expanded(child: _buildTable(engine, myIndex)),
+          _buildCantoBar(engine, myIndex),
           const SizedBox(height: 8),
-          Text('Turno: Jugador ${current + 1}', style: Theme.of(context).textTheme.titleSmall),
+          Text(myTurn ? 'Tu turno' : 'Esperando a tu pareja…', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
           SizedBox(
             height: 100,
@@ -102,8 +141,8 @@ class _TrucoGameScreenState extends State<TrucoGameScreen> {
                     child: StaggeredEntrance(
                       index: i,
                       child: GestureDetector(
-                        onTap: _engine.phase == TrucoPhase.playing
-                            ? () => _afterAction(() => _engine.playCard(current, hand[i]))
+                        onTap: myTurn && engine.phase == TrucoPhase.playing
+                            ? () => _controller.act((e) => e.playCard(myIndex, hand[i]))
                             : null,
                         child: SpanishCardFace(card: hand[i], width: 68),
                       ),
@@ -118,7 +157,7 @@ class _TrucoGameScreenState extends State<TrucoGameScreen> {
     );
   }
 
-  Widget _buildTable(BuildContext context) {
+  Widget _buildTable(TrucoEngine engine, int myIndex) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -126,9 +165,9 @@ class _TrucoGameScreenState extends State<TrucoGameScreen> {
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _trickSlot(_engine.playedCards[0][trick]),
+              _trickSlot(engine.playedCards[1 - myIndex][trick]),
               const SizedBox(height: 8),
-              _trickSlot(_engine.playedCards[1][trick]),
+              _trickSlot(engine.playedCards[myIndex][trick]),
             ],
           ),
       ],
@@ -140,55 +179,66 @@ class _TrucoGameScreenState extends State<TrucoGameScreen> {
       return Container(
         width: 60,
         height: 87,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.black12, width: 1.5),
-          borderRadius: BorderRadius.circular(8),
-        ),
+        decoration:
+            BoxDecoration(border: Border.all(color: Colors.black12, width: 1.5), borderRadius: BorderRadius.circular(8)),
       );
     }
     return PopInCard(key: ValueKey(card), child: SpanishCardFace(card: card, width: 60));
   }
 
-  Widget _buildCantoBar(BuildContext context) {
-    if (_engine.phase == TrucoPhase.awaitingEnvidoResponse) {
-      final label = switch (_engine.pendingEnvidoCall!) {
+  Widget _buildCantoBar(TrucoEngine engine, int myIndex) {
+    if (engine.phase == TrucoPhase.awaitingEnvidoResponse) {
+      if (engine.envidoCallerId == myIndex) {
+        return const Padding(
+          padding: EdgeInsets.all(8),
+          child: Text('Esperando que tu pareja responda…', style: TextStyle(fontWeight: FontWeight.bold)),
+        );
+      }
+      final label = switch (engine.pendingEnvidoCall!) {
         EnvidoCall.envido => 'Envido',
         EnvidoCall.realEnvido => 'Real Envido',
         EnvidoCall.faltaEnvido => 'Falta Envido',
       };
-      return _responseBar('¿Aceptás el $label?', () => _afterAction(() => _engine.respondEnvido(true)),
-          () => _afterAction(() => _engine.respondEnvido(false)));
+      return _responseBar('¿Aceptás el $label?', () => _controller.act((e) => e.respondEnvido(true)),
+          () => _controller.act((e) => e.respondEnvido(false)));
     }
 
-    if (_engine.phase == TrucoPhase.awaitingTrucoResponse) {
-      final label = switch (_engine.pendingTrucoLevel) {
+    if (engine.phase == TrucoPhase.awaitingTrucoResponse) {
+      if (engine.trucoCallerId == myIndex) {
+        return const Padding(
+          padding: EdgeInsets.all(8),
+          child: Text('Esperando que tu pareja responda…', style: TextStyle(fontWeight: FontWeight.bold)),
+        );
+      }
+      final label = switch (engine.pendingTrucoLevel) {
         TrucoLevel.truco => 'Truco',
         TrucoLevel.retruco => 'Retruco',
         TrucoLevel.valeCuatro => 'Vale Cuatro',
         TrucoLevel.none => '',
       };
-      return _responseBar('¿Aceptás el $label?', () => _afterAction(() => _engine.respondTruco(true)),
-          () => _afterAction(() => _engine.respondTruco(false)));
+      return _responseBar('¿Aceptás el $label?', () => _controller.act((e) => e.respondTruco(true)),
+          () => _controller.act((e) => e.respondTruco(false)));
     }
 
-    final current = _engine.currentPlayer;
+    if (engine.currentPlayer != myIndex) return const SizedBox(height: 8);
+
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 8,
       runSpacing: 4,
       children: [
-        if (_engine.canCallEnvido) ...[
-          _cantoChip('Envido', () => _afterAction(() => _engine.callEnvido(current, EnvidoCall.envido))),
-          _cantoChip('Real Envido', () => _afterAction(() => _engine.callEnvido(current, EnvidoCall.realEnvido))),
-          _cantoChip('Falta Envido', () => _afterAction(() => _engine.callEnvido(current, EnvidoCall.faltaEnvido))),
+        if (engine.canCallEnvido) ...[
+          _cantoChip('Envido', () => _controller.act((e) => e.callEnvido(myIndex, EnvidoCall.envido))),
+          _cantoChip('Real Envido', () => _controller.act((e) => e.callEnvido(myIndex, EnvidoCall.realEnvido))),
+          _cantoChip('Falta Envido', () => _controller.act((e) => e.callEnvido(myIndex, EnvidoCall.faltaEnvido))),
         ],
-        if (_engine.canCallTruco) _cantoChip('Truco', () => _afterAction(() => _engine.callTruco(current))),
-        if (_engine.canRaiseTruco(current))
+        if (engine.canCallTruco) _cantoChip('Truco', () => _controller.act((e) => e.callTruco(myIndex))),
+        if (engine.canRaiseTruco(myIndex))
           _cantoChip(
-            _engine.acceptedTrucoLevel == TrucoLevel.truco ? 'Retruco' : 'Vale Cuatro',
-            () => _afterAction(() => _engine.raiseTruco(current)),
+            engine.acceptedTrucoLevel == TrucoLevel.truco ? 'Retruco' : 'Vale Cuatro',
+            () => _controller.act((e) => e.raiseTruco(myIndex)),
           ),
-        _cantoChip('Me voy al mazo', () => _afterAction(() => _engine.foldMano(current)), danger: true),
+        _cantoChip('Me voy al mazo', () => _controller.act((e) => e.foldMano(myIndex)), danger: true),
       ],
     );
   }

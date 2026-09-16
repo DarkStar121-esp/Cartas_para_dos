@@ -52,6 +52,13 @@ class SpanishCard {
   final Rank rank;
   const SpanishCard(this.suit, this.rank);
 
+  Map<String, dynamic> toJson() => {'suit': suit.name, 'rank': rank.name};
+
+  factory SpanishCard.fromJson(Map<String, dynamic> json) => SpanishCard(
+        Suit.values.byName(json['suit'] as String),
+        Rank.values.byName(json['rank'] as String),
+      );
+
   @override
   bool operator ==(Object other) =>
       other is SpanishCard && other.suit == suit && other.rank == rank;

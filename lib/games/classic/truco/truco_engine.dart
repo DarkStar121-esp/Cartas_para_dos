@@ -56,6 +56,81 @@ class TrucoEngine {
     _dealNewMano(random);
   }
 
+  /// Constructor "vacío" usado solo por [TrucoEngine.fromJson].
+  TrucoEngine._empty() : manoPlayer = 0;
+
+  /// Serializa todo el estado para mandarlo al otro dispositivo (ver
+  /// core/multiplayer/).
+  Map<String, dynamic> toJson() => {
+        'hands': [
+          for (final h in hands) [for (final c in h) c.toJson()],
+        ],
+        'scores': scores,
+        'manoPlayer': manoPlayer,
+        'trickLeader': trickLeader,
+        'currentPlayer': currentPlayer,
+        'currentTrick': currentTrick,
+        'trickResults': [for (final t in trickResults) t?.name],
+        'playedCards': [
+          for (final row in playedCards) [for (final c in row) c?.toJson()],
+        ],
+        'pendingTrucoLevel': pendingTrucoLevel.name,
+        'acceptedTrucoLevel': acceptedTrucoLevel.name,
+        'trucoCallerId': trucoCallerId,
+        'envidoResolvedThisMano': envidoResolvedThisMano,
+        'pendingEnvidoCall': pendingEnvidoCall?.name,
+        'envidoCallerId': envidoCallerId,
+        'manoWinner': manoWinner,
+        'gameWinner': gameWinner,
+        'phase': phase.name,
+      };
+
+  factory TrucoEngine.fromJson(Map<String, dynamic> json) {
+    final engine = TrucoEngine._empty();
+
+    final handsJson = json['hands'] as List;
+    for (var i = 0; i < handsJson.length; i++) {
+      engine.hands[i] = [
+        for (final c in handsJson[i] as List) SpanishCard.fromJson(Map<String, dynamic>.from(c as Map)),
+      ];
+    }
+    final scoresJson = json['scores'] as List;
+    for (var i = 0; i < scoresJson.length; i++) {
+      engine.scores[i] = scoresJson[i] as int;
+    }
+    engine.manoPlayer = json['manoPlayer'] as int;
+    engine.trickLeader = json['trickLeader'] as int;
+    engine.currentPlayer = json['currentPlayer'] as int;
+    engine.currentTrick = json['currentTrick'] as int;
+
+    final trickResultsJson = json['trickResults'] as List;
+    for (var i = 0; i < trickResultsJson.length; i++) {
+      final v = trickResultsJson[i] as String?;
+      engine.trickResults[i] = v == null ? null : TrickOutcome.values.byName(v);
+    }
+
+    final playedCardsJson = json['playedCards'] as List;
+    for (var p = 0; p < playedCardsJson.length; p++) {
+      final row = playedCardsJson[p] as List;
+      for (var t = 0; t < row.length; t++) {
+        final c = row[t];
+        engine.playedCards[p][t] = c == null ? null : SpanishCard.fromJson(Map<String, dynamic>.from(c as Map));
+      }
+    }
+
+    engine.pendingTrucoLevel = TrucoLevel.values.byName(json['pendingTrucoLevel'] as String);
+    engine.acceptedTrucoLevel = TrucoLevel.values.byName(json['acceptedTrucoLevel'] as String);
+    engine.trucoCallerId = json['trucoCallerId'] as int?;
+    engine.envidoResolvedThisMano = json['envidoResolvedThisMano'] as bool;
+    final pendingEnvido = json['pendingEnvidoCall'] as String?;
+    engine.pendingEnvidoCall = pendingEnvido == null ? null : EnvidoCall.values.byName(pendingEnvido);
+    engine.envidoCallerId = json['envidoCallerId'] as int?;
+    engine.manoWinner = json['manoWinner'] as int?;
+    engine.gameWinner = json['gameWinner'] as int?;
+    engine.phase = TrucoPhase.values.byName(json['phase'] as String);
+    return engine;
+  }
+
   void _dealNewMano(Random? random) {
     final deck = generateSpanishDeck()..shuffle(random ?? Random());
     hands[0] = deck.sublist(0, 3);

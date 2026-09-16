@@ -1,9 +1,19 @@
 import 'package:flutter/material.dart';
-import '../../shared/spanish_deck.dart';
-import '../../../widgets/cards/spanish_card_face.dart';
+import 'package:provider/provider.dart';
+import '../../../core/app_session.dart';
+import '../../../core/multiplayer/game_session.dart';
+import '../../../core/multiplayer/game_sync_controller.dart';
 import '../../../widgets/cards/card_animations.dart';
+import '../../../widgets/cards/spanish_card_face.dart';
+import '../../shared/spanish_deck.dart';
 import 'chinchon_engine.dart';
+import 'chinchon_melds.dart';
 
+/// Versión multijugador de Chinchón: cada celular ve solo su propia
+/// mano; la de la pareja se ve como cantidad de cartas nada más. El
+/// estado de "ya robé este turno" no es una bandera local — se deriva
+/// de `hand.length == 8`, así que siempre está sincronizado sin
+/// necesidad de mandarlo aparte.
 class ChinchonGameScreen extends StatefulWidget {
   const ChinchonGameScreen({super.key});
 
@@ -12,38 +22,65 @@ class ChinchonGameScreen extends StatefulWidget {
 }
 
 class _ChinchonGameScreenState extends State<ChinchonGameScreen> {
-  late ChinchonEngine _engine;
+  late final GameSyncController<ChinchonEngine> _controller;
+  ChinchonEngine? _engine;
   SpanishCard? _selected;
-  bool _hasDrawnThisTurn = false;
+  bool _summaryShown = false;
 
   @override
   void initState() {
     super.initState();
-    _engine = ChinchonEngine(2);
+    final session = context.read<AppSession>();
+    final couple = session.couple!;
+    _controller = GameSyncController<ChinchonEngine>(
+      repository: session.gameSessionRepository,
+      sessionId: buildGameSessionId(couple.id, 'chinchon'),
+      coupleId: couple.id,
+      gameId: 'chinchon',
+      myPlayerIndex: session.myPlayerIndex,
+      decode: ChinchonEngine.fromJson,
+      encode: (e) => e.toJson(),
+    );
+    _controller.connect(buildInitialState: () => ChinchonEngine(2));
+    _controller.stream.listen((engine) {
+      setState(() {
+        _engine = engine;
+        _selected = null;
+      });
+      if (engine.roundOver && !_summaryShown) {
+        _summaryShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _showRoundSummary());
+      } else if (!engine.roundOver) {
+        _summaryShown = false;
+      }
+    });
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  int get _myIndex => context.read<AppSession>().myPlayerIndex;
+
   void _draw(bool fromDiscard) {
-    setState(() {
-      fromDiscard ? _engine.drawFromDiscard(_engine.currentPlayer) : _engine.drawFromPile(_engine.currentPlayer);
-      _hasDrawnThisTurn = true;
-      _selected = null;
-    });
+    _controller.act((e) => fromDiscard ? e.drawFromDiscard(_myIndex) : e.drawFromPile(_myIndex));
   }
 
   void _discardSelected({bool corte = false}) {
-    if (_selected == null) return;
-    setState(() {
-      _engine.discard(_engine.currentPlayer, _selected!, declaringCorte: corte);
-      _selected = null;
-      _hasDrawnThisTurn = false;
-    });
-    if (_engine.roundOver) _showRoundSummary();
+    final card = _selected;
+    if (card == null) return;
+    setState(() => _selected = null);
+    _controller.act((e) => e.discard(_myIndex, card, declaringCorte: corte));
   }
 
   void _showRoundSummary() {
-    final breakdown = _engine.lastRoundBreakdown!;
-    final cutter = _engine.roundWinner!;
-    final chinchon = _engine.roundWinnerHadChinchon == true;
+    final engine = _engine!;
+    final myIndex = _myIndex;
+    final cutter = engine.roundWinner!;
+    final chinchon = engine.roundWinnerHadChinchon == true;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -53,27 +90,27 @@ class _ChinchonGameScreenState extends State<ChinchonGameScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Jugador ${cutter + 1} cortó la ronda.'),
+            Text(cutter == myIndex ? 'Vos cortaste la ronda.' : 'Tu pareja cortó la ronda.'),
             const SizedBox(height: 8),
-            for (var p = 0; p < _engine.playerCount; p++)
-              Text('Jugador ${p + 1}: ${breakdown[p]!.deadwoodPoints} pts sueltos '
-                  '· Total ${_engine.totalScores[p]}'),
+            for (var p = 0; p < engine.playerCount; p++)
+              Text(
+                '${p == myIndex ? 'Vos' : 'Tu pareja'}: '
+                '${ChinchonMelds.bestPartition(engine.hands[p]).deadwoodPoints} pts sueltos '
+                '· Total ${engine.totalScores[p]}',
+              ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              if (_engine.isGameOver) {
+              if (engine.isGameOver) {
                 _showGameOver();
-              } else {
-                setState(() {
-                  _engine.startNextRound();
-                  _hasDrawnThisTurn = false;
-                });
+              } else if (myIndex == 0) {
+                _controller.act((e) => e.startNextRound());
               }
             },
-            child: Text(_engine.isGameOver ? 'Ver resultado final' : 'Siguiente ronda'),
+            child: Text(engine.isGameOver ? 'Ver resultado final' : 'Siguiente ronda'),
           ),
         ],
       ),
@@ -81,20 +118,19 @@ class _ChinchonGameScreenState extends State<ChinchonGameScreen> {
   }
 
   void _showGameOver() {
-    final winner = _engine.gameWinner!;
+    final engine = _engine!;
+    final myIndex = _myIndex;
+    final winner = engine.gameWinner!;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('¡Jugador ${winner + 1} ganó la partida! 🏆'),
-        content: Text('Puntajes finales: ${_engine.totalScores.join(' - ')}'),
+        title: Text(winner == myIndex ? '¡Ganaste la partida! 🏆' : 'Tu pareja ganó la partida'),
+        content: Text('Puntajes finales: ${engine.totalScores.join(' - ')}'),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              setState(() {
-                _engine = ChinchonEngine(2);
-                _hasDrawnThisTurn = false;
-              });
+              if (myIndex == 0) _controller.replaceState(ChinchonEngine(2));
             },
             child: const Text('Jugar de nuevo'),
           ),
@@ -105,9 +141,18 @@ class _ChinchonGameScreenState extends State<ChinchonGameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final current = _engine.currentPlayer;
-    final hand = _engine.hands[current];
-    final canCut = _hasDrawnThisTurn && _selected != null && _engine.canCut(current);
+    final engine = _engine;
+    final myIndex = context.watch<AppSession>().myPlayerIndex;
+
+    if (engine == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final myTurn = engine.currentPlayer == myIndex;
+    final hand = engine.hands[myIndex];
+    final hasDrawn = hand.length == 8;
+    final canCut = myTurn && hasDrawn && _selected != null && engine.canCut(myIndex);
+    final opponentCount = engine.hands[1 - myIndex].length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Chinchón')),
@@ -115,29 +160,26 @@ class _ChinchonGameScreenState extends State<ChinchonGameScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text('Turno: Jugador ${current + 1}  ·  Puntos: ${_engine.totalScores.join(' - ')}',
-                style: Theme.of(context).textTheme.titleMedium),
+            child: Text(
+              'Puntos: ${engine.totalScores.join(' - ')}  ·  Tu pareja tiene $opponentCount cartas',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
           ),
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // Mazo (boca abajo)
                 GestureDetector(
-                  onTap: _hasDrawnThisTurn ? null : () => _draw(false),
-                  child: Opacity(
-                    opacity: _hasDrawnThisTurn ? 0.4 : 1,
-                    child: const SpanishCardBack(width: 72),
-                  ),
+                  onTap: myTurn && !hasDrawn ? () => _draw(false) : null,
+                  child: Opacity(opacity: myTurn && !hasDrawn ? 1 : 0.4, child: const SpanishCardBack(width: 72)),
                 ),
-                // Pozo de descarte (boca arriba)
                 GestureDetector(
-                  onTap: _hasDrawnThisTurn ? null : () => _draw(true),
+                  onTap: myTurn && !hasDrawn ? () => _draw(true) : null,
                   child: Opacity(
-                    opacity: _hasDrawnThisTurn ? 0.4 : 1,
+                    opacity: myTurn && !hasDrawn ? 1 : 0.4,
                     child: PopInCard(
-                      key: ValueKey(_engine.topDiscard),
-                      child: SpanishCardFace(card: _engine.topDiscard, width: 72),
+                      key: ValueKey(engine.topDiscard),
+                      child: SpanishCardFace(card: engine.topDiscard, width: 72),
                     ),
                   ),
                 ),
@@ -147,9 +189,11 @@ class _ChinchonGameScreenState extends State<ChinchonGameScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              _hasDrawnThisTurn
-                  ? 'Elegí una carta para descartar'
-                  : 'Robá del mazo o del pozo',
+              !myTurn
+                  ? 'Esperando a tu pareja…'
+                  : hasDrawn
+                      ? 'Elegí una carta para descartar'
+                      : 'Robá del mazo o del pozo',
               style: const TextStyle(color: Colors.black54),
             ),
           ),
@@ -166,7 +210,7 @@ class _ChinchonGameScreenState extends State<ChinchonGameScreen> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: GestureDetector(
-                        onTap: () => setState(() => _selected = hand[i]),
+                        onTap: myTurn && hasDrawn ? () => setState(() => _selected = hand[i]) : null,
                         child: AnimatedSlide(
                           duration: const Duration(milliseconds: 200),
                           offset: _selected == hand[i] ? const Offset(0, -0.15) : Offset.zero,
@@ -183,7 +227,7 @@ class _ChinchonGameScreenState extends State<ChinchonGameScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               ElevatedButton.icon(
-                onPressed: _hasDrawnThisTurn && _selected != null ? () => _discardSelected() : null,
+                onPressed: myTurn && hasDrawn && _selected != null ? () => _discardSelected() : null,
                 icon: const Icon(Icons.file_upload_outlined),
                 label: const Text('Descartar'),
               ),

@@ -26,4 +26,11 @@ abstract class AuthService {
   });
 
   Future<UserAccount?> fetchAccount(String uid);
+
+  /// Emite la cuenta cada vez que cambia (pairing confirmado, cambios de
+  /// personalización hechos desde este mismo dispositivo, etc). Es lo
+  /// que le permite a AppSession enterarse de que un pairing se
+  /// confirmó sin que la pantalla que lo originó tenga que hacer nada
+  /// manualmente — ver core/app_session.dart.
+  Stream<UserAccount?> watchAccount(String uid);
 }
