@@ -62,9 +62,6 @@ abstract class PairingRepository {
 class InMemoryPairingRepository implements PairingRepository {
   @override
   Stream<UserAccount> discoverOnLocalNetwork() => const Stream.empty();
-  @override
-  @override
-  @override
   final MockAuthService authService;
   final Map<String, StreamController<PairingRequest?>> _incomingByUserId = {};
   final Map<String, Couple> _couplesById = {};
