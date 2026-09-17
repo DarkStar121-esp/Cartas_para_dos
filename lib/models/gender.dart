@@ -23,3 +23,7 @@ extension GenderHexExt on Gender {
 extension GenderHexExt on Gender {
   String get defaultBackgroundHex => '#E0E0E0';
 }
+
+extension GenderHexExt on Gender {
+  String get defaultBackgroundHex => '#E0E0E0';
+}
