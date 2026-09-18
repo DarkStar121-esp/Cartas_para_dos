@@ -11,6 +11,7 @@ class UserAccount {
   final String? customGoogleUid;
   final String? customPairingCode;
   final int? age;
+  final dynamic customization;
 
   UserAccount({
     required this.id,
@@ -25,6 +26,7 @@ class UserAccount {
     String? pairingCode,
     String? fullName,
     this.age,
+    this.customization,
   })  : customFirstName = firstName,
         name = name ?? fullName ?? displayName ?? (firstName != null ? '$firstName ${lastName ?? ""}'.trim() : 'Usuario'),
         customGoogleUid = googleUid,
@@ -49,6 +51,7 @@ class UserAccount {
       'googleUid': googleUid,
       'pairingCode': pairingCode,
       'age': age,
+      'customization': customization,
     };
   }
 }
