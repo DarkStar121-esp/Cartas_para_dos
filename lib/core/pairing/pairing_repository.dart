@@ -7,6 +7,8 @@ abstract class PairingRepository {
   Future<PairingResult> pairWithCode(String code);
   Stream<PairingStatus> watchPairingStatus();
   Stream<UserAccount> discoverOnLocalNetwork();
+  Future<void> confirmPairing(dynamic pairingId);
+  Future<void> sendPairingRequest(String myId, String code);
 }
 
 class InMemoryPairingRepository implements PairingRepository {
@@ -29,4 +31,10 @@ class InMemoryPairingRepository implements PairingRepository {
 
   @override
   Stream<UserAccount> discoverOnLocalNetwork() => const Stream.empty();
+
+  @override
+  Future<void> confirmPairing(dynamic pairingId) async {}
+
+  @override
+  Future<void> sendPairingRequest(String myId, String code) async {}
 }
