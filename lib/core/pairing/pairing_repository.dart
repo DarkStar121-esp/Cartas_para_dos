@@ -1,61 +1,85 @@
 import 'dart:async';
-import 'pairing_models.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/user_account.dart';
+import 'pairing_models.dart';
 
 abstract class PairingRepository {
-  Future<String> createPairingCode();
-  Future<PairingResult> pairWithCode(String code);
-  Stream<PairingStatus> watchPairingStatus();
+  Future<String> generatePairingCode(String userId);
+  Future<PairingResult> sendPairingRequest(String code, UserAccount currentUser);
+  Stream<PairingRequest?> watchIncomingRequest(String userId);
+  Future<void> acceptPairingRequest(PairingRequest request);
+  Future<void> rejectPairingRequest(PairingRequest request);
   Stream<UserAccount> discoverOnLocalNetwork();
-  Future<void> confirmPairing(
-    dynamic pairingId, {
-    dynamic relationshipType,
-    DateTime? relationshipStartDate,
-    dynamic type,
-    String? id,
-  });
-  Future<void> sendPairingRequest(dynamic myId, dynamic code);
-  Stream<PairingRequest?> watchIncomingRequest(dynamic userId);
-  Future<UserAccount?> findById(dynamic userId);
-  Future<dynamic> fetchCouple(dynamic coupleId);
 }
 
-class InMemoryPairingRepository implements PairingRepository {
-  final dynamic authService;
-  InMemoryPairingRepository([this.authService]);
-
-  final _statusController = StreamController<PairingStatus>.broadcast();
+class FirestorePairingRepository implements PairingRepository {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
-  Future<String> createPairingCode() async => '123456';
+  Future<String> generatePairingCode(String userId) async {
+    final code = (100000 + (userId.hashCode.abs() % 900000)).toString();
+    await _firestore.collection('pairing_codes').doc(code).set({
+      'userId': userId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return code;
+  }
 
   @override
-  Future<PairingResult> pairWithCode(String code) async => PairingResult.success();
+  Future<PairingResult> sendPairingRequest(String code, UserAccount currentUser) async {
+    final doc = await _firestore.collection('pairing_codes').doc(code).get();
+    if (!doc.exists) {
+      return PairingResult.error('Código no encontrado');
+    }
+    final targetUserId = doc.data()?['userId'] as String?;
+    if (targetUserId == null) {
+      return PairingResult.error('Código inválido');
+    }
+
+    await _firestore.collection('pairing_requests').doc(targetUserId).set({
+      'fromUserId': currentUser.id,
+      'fromUserName': currentUser.displayName,
+      'code': code,
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    return PairingResult.success();
+  }
 
   @override
-  Stream<PairingStatus> watchPairingStatus() => _statusController.stream;
+  Stream<PairingRequest?> watchIncomingRequest(String userId) {
+    return _firestore
+        .collection('pairing_requests')
+        .doc(userId)
+        .snapshots()
+        .map((snapshot) {
+      if (!snapshot.exists || snapshot.data() == null) return null;
+      final data = snapshot.data()!;
+      return PairingRequest(
+        id: snapshot.id,
+        fromUserId: data['fromUserId'] ?? '',
+        fromUserName: data['fromUserName'] ?? 'Usuario',
+      );
+    });
+  }
+
+  @override
+  Future<void> acceptPairingRequest(PairingRequest request) async {
+    await _firestore.collection('couples').add({
+      'users': [request.id, request.fromUserId],
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    await _firestore.collection('pairing_requests').doc(request.id).delete();
+  }
+
+  @override
+  Future<void> rejectPairingRequest(PairingRequest request) async {
+    await _firestore.collection('pairing_requests').doc(request.id).delete();
+  }
 
   @override
   Stream<UserAccount> discoverOnLocalNetwork() => const Stream.empty();
-
-  @override
-  Future<void> confirmPairing(
-    dynamic pairingId, {
-    dynamic relationshipType,
-    DateTime? relationshipStartDate,
-    dynamic type,
-    String? id,
-  }) async {}
-
-  @override
-  Future<void> sendPairingRequest(dynamic myId, dynamic code) async {}
-
-  @override
-  Stream<PairingRequest?> watchIncomingRequest(dynamic userId) => const Stream.empty();
-
-  @override
-  Future<UserAccount?> findById(dynamic userId) async => null;
-
-  @override
-  Future<dynamic> fetchCouple(dynamic coupleId) async => null;
 }
+
+typedef InMemoryPairingRepository = FirestorePairingRepository;

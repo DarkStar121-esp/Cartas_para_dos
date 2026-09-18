@@ -1,36 +1,83 @@
-import '../../models/gender.dart';
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/user_account.dart';
+import '../../models/gender.dart';
 
-/// Contrato de autenticación + alta de cuenta. La implementación real usa
-/// firebase_auth (con el provider de Google) + Firestore para guardar el
-/// UserAccount. Requiere: crear un proyecto de Firebase, agregar
-/// google-services.json (Android), y habilitar el proveedor "Google" en
-/// Firebase Auth — ver README.md.
 abstract class AuthService {
-  /// Emite el uid de Firebase logueado, o null si no hay sesión activa.
-  Stream<String?> get authStateChanges;
-
-  /// Dispara el flujo nativo de Google Sign-In y devuelve el uid.
-  Future<String> signInWithGoogle();
-
+  Stream<UserAccount?> get userStream;
+  UserAccount? get currentUser;
+  Future<UserAccount> signInAnonymously();
   Future<void> signOut();
-
-  /// Alta de cuenta — se llama una sola vez, después del primer login,
-  /// si todavía no existe un UserAccount para ese uid.
-  Future<UserAccount> createAccount({
-    required String googleUid,
-    required String firstName,
-    required String lastName,
-    required int age,
-    required Gender gender,
-  });
-
-  Future<UserAccount?> fetchAccount(String uid);
-
-  /// Emite la cuenta cada vez que cambia (pairing confirmado, cambios de
-  /// personalización hechos desde este mismo dispositivo, etc). Es lo
-  /// que le permite a AppSession enterarse de que un pairing se
-  /// confirmó sin que la pantalla que lo originó tenga que hacer nada
-  /// manualmente — ver core/app_session.dart.
-  Stream<UserAccount?> watchAccount(String uid);
 }
+
+class FirebaseAuthService implements AuthService {
+  final fb.FirebaseAuth _auth = fb.FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  @override
+  Stream<UserAccount?> get userStream {
+    return _auth.authStateChanges().asyncMap((fbUser) async {
+      if (fbUser == null) return null;
+      return _getOrUpdateUserAccount(fbUser);
+    });
+  }
+
+  @override
+  UserAccount? get currentUser {
+    final fbUser = _auth.currentUser;
+    if (fbUser == null) return null;
+    return UserAccount(
+      id: fbUser.uid,
+      displayName: fbUser.displayName ?? 'Usuario',
+      email: fbUser.email ?? '',
+      gender: Gender.other,
+    );
+  }
+
+  @override
+  Future<UserAccount> signInAnonymously() async {
+    final cred = await _auth.signInAnonymously();
+    final fbUser = cred.user!;
+    return _getOrUpdateUserAccount(fbUser);
+  }
+
+  Future<UserAccount> _getOrUpdateUserAccount(fb.User fbUser) async {
+    final docRef = _firestore.collection('users').doc(fbUser.uid);
+    final doc = await docRef.get();
+
+    if (doc.exists && doc.data() != null) {
+      final data = doc.data()!;
+      return UserAccount(
+        id: fbUser.uid,
+        displayName: data['displayName'] ?? 'Usuario',
+        email: data['email'] ?? fbUser.email ?? '',
+        gender: Gender.values.firstWhere(
+          (g) => g.name == (data['gender'] ?? 'other'),
+          orElse: () => Gender.other,
+        ),
+      );
+    } else {
+      final newUser = UserAccount(
+        id: fbUser.uid,
+        displayName: 'Usuario_${fbUser.uid.substring(0, 4)}',
+        email: fbUser.email ?? '',
+        gender: Gender.other,
+      );
+      await docRef.set({
+        'displayName': newUser.displayName,
+        'email': newUser.email,
+        'gender': newUser.gender.name,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      return newUser;
+    }
+  }
+
+  @override
+  Future<void> signOut() async {
+    await _auth.signOut();
+  }
+}
+
+typedef InMemoryAuthService = FirebaseAuthService;
