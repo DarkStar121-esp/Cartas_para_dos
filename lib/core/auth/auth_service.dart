@@ -8,11 +8,13 @@ abstract class AuthService {
   Stream<UserAccount?> get userStream;
   UserAccount? get currentUser;
   Future<UserAccount> signInAnonymously();
-  Future<dynamic> signInWithGoogle();
-  Future<UserAccount?> fetchAccount(String userId);
-  Future<UserAccount> createAccount(dynamic a1, [dynamic a2, dynamic a3]);
-  Future<void> updateAccount(dynamic a1, [dynamic a2]);
+  Future<dynamic> signInWithGoogle([dynamic a1]);
+  Future<UserAccount?> fetchAccount([dynamic a1]);
+  Future<UserAccount> createAccount([dynamic a1, dynamic a2, dynamic a3]);
+  Future<void> updateAccount([dynamic a1, dynamic a2]);
   Future<void> signOut();
+  Future<void> switchAccount([dynamic a1]);
+  List<UserAccount> get devAccounts;
 }
 
 class FirebaseAuthService implements AuthService {
@@ -36,6 +38,7 @@ class FirebaseAuthService implements AuthService {
       name: fbUser.displayName ?? 'Usuario',
       email: fbUser.email ?? '',
       gender: Gender.other,
+      googleUid: fbUser.uid,
     );
   }
 
@@ -50,19 +53,22 @@ class FirebaseAuthService implements AuthService {
       name: 'Usuario_${fbUser.uid.substring(0, 4)}',
       email: fbUser.email ?? '',
       gender: Gender.other,
+      googleUid: fbUser.uid,
     );
     await createAccount(newUser);
     return newUser;
   }
 
   @override
-  Future<dynamic> signInWithGoogle() async {
+  Future<dynamic> signInWithGoogle([dynamic a1]) async {
     return await signInAnonymously();
   }
 
   @override
-  Future<UserAccount?> fetchAccount(String userId) async {
+  Future<UserAccount?> fetchAccount([dynamic a1]) async {
     try {
+      final userId = a1?.toString() ?? _auth.currentUser?.uid;
+      if (userId == null) return null;
       final doc = await _firestore.collection('users').doc(userId).get();
       if (!doc.exists || doc.data() == null) return null;
       final data = doc.data()!;
@@ -75,6 +81,7 @@ class FirebaseAuthService implements AuthService {
           orElse: () => Gender.other,
         ),
         coupleId: data['coupleId'] as String?,
+        googleUid: data['googleUid'] as String? ?? doc.id,
       );
     } catch (_) {
       return null;
@@ -82,16 +89,19 @@ class FirebaseAuthService implements AuthService {
   }
 
   @override
-  Future<UserAccount> createAccount(dynamic a1, [dynamic a2, dynamic a3]) async {
+  Future<UserAccount> createAccount([dynamic a1, dynamic a2, dynamic a3]) async {
     UserAccount account;
     if (a1 is UserAccount) {
       account = a1;
-    } else {
+    } else if (a1 != null) {
       account = UserAccount(
-        id: a1?.toString() ?? _auth.currentUser?.uid ?? 'unknown',
+        id: a1.toString(),
         name: a2?.toString() ?? 'Usuario',
         email: a3?.toString() ?? '',
       );
+    } else {
+      final uid = _auth.currentUser?.uid ?? 'user_${DateTime.now().millisecondsSinceEpoch}';
+      account = UserAccount(id: uid, name: 'Usuario', googleUid: uid);
     }
     await _firestore.collection('users').doc(account.id).set({
       'name': account.name,
@@ -99,13 +109,14 @@ class FirebaseAuthService implements AuthService {
       'email': account.email,
       'gender': account.gender.name,
       'coupleId': account.coupleId,
+      'googleUid': account.googleUid,
       'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
     return account;
   }
 
   @override
-  Future<void> updateAccount(dynamic a1, [dynamic a2]) async {
+  Future<void> updateAccount([dynamic a1, dynamic a2]) async {
     if (a1 is UserAccount) {
       await _firestore.collection('users').doc(a1.id).set({
         'name': a1.name,
@@ -113,6 +124,7 @@ class FirebaseAuthService implements AuthService {
         'email': a1.email,
         'gender': a1.gender.name,
         'coupleId': a1.coupleId,
+        'googleUid': a1.googleUid,
       }, SetOptions(merge: true));
     } else if (a1 is String && a2 != null) {
       await _firestore.collection('users').doc(a1).set(
@@ -126,6 +138,12 @@ class FirebaseAuthService implements AuthService {
   Future<void> signOut() async {
     await _auth.signOut();
   }
+
+  @override
+  Future<void> switchAccount([dynamic a1]) async {}
+
+  @override
+  List<UserAccount> get devAccounts => [];
 }
 
 typedef InMemoryAuthService = FirebaseAuthService;
