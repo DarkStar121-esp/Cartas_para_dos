@@ -59,10 +59,7 @@ abstract class PairingRepository {
 /// la mensajería de solicitudes de pairing, una por cada usuario
 /// destinatario (así dos pantallas escuchando `watchIncomingRequest` con
 /// ids distintos no se pisan entre sí).
-class InMemoryPairingRepository implements PairingRepository {
-  @override
-  Stream<UserAccount> discoverOnLocalNetwork() => const Stream.empty();
-  @override
+class InMemoryPairingRepository extends PairingRepository {
   final MockAuthService authService;
   final Map<String, StreamController<PairingRequest?>> _incomingByUserId = {};
   final Map<String, Couple> _couplesById = {};

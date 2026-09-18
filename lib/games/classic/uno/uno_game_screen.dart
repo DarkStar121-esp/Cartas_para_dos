@@ -4,16 +4,8 @@ import '../../../core/app_session.dart';
 import '../../../core/multiplayer/game_session.dart';
 import '../../../core/multiplayer/game_sync_controller.dart';
 import '../../../widgets/cards/card_animations.dart';
-import '../../../widgets/cards/spanish_card_face.dart' show SpanishCardBack;
+import 'uno_card_face.dart';
 import 'uno_engine.dart';
-
-const Map<UnoColor, Color> _colorMap = {
-  UnoColor.red: Colors.red,
-  UnoColor.yellow: Colors.amber,
-  UnoColor.green: Colors.green,
-  UnoColor.blue: Colors.blue,
-  UnoColor.wild: Colors.black87,
-};
 
 /// Versión multijugador: cada celular corre esta pantalla mostrando SOLO
 /// la mano de su propio dueño. La mano de la pareja se ve boca abajo
@@ -64,7 +56,7 @@ class _UnoGameScreenState extends State<UnoGameScreen> {
           children: [UnoColor.red, UnoColor.yellow, UnoColor.green, UnoColor.blue]
               .map((c) => GestureDetector(
                     onTap: () => Navigator.pop(ctx, c),
-                    child: CircleAvatar(backgroundColor: _colorMap[c], radius: 22),
+                    child: CircleAvatar(backgroundColor: UnoCardFace.colorMap[c], radius: 22),
                   ))
               .toList(),
         ),
@@ -100,32 +92,16 @@ class _UnoGameScreenState extends State<UnoGameScreen> {
     }
   }
 
-  Widget _cardWidget(UnoCard card, {VoidCallback? onTap}) {
-    final label = card.value.index <= 9
-        ? '${card.value.index}'
-        : {
-            UnoValue.skip: '⦸',
-            UnoValue.reverse: '⟲',
-            UnoValue.drawTwo: '+2',
-            UnoValue.wild: '★',
-            UnoValue.wildDrawFour: '+4',
-          }[card.value]!;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 56,
-        height: 80,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        decoration: BoxDecoration(
-          color: _colorMap[card.color],
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white, width: 2),
-        ),
-        alignment: Alignment.center,
-        child: Text(label,
-            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-      ),
-    );
+  /// Robar SIEMPRE termina el turno — ya sea que la carta robada se
+  /// pueda jugar o no. Antes solo pasaba el turno si la carta era
+  /// injugable, lo que dejaba robar de nuevo sin límite; ahora el botón
+  /// queda deshabilitado apenas cambia `currentPlayer`.
+  void _drawAndPassTurn(int myIndex) {
+    _controller.act((e) {
+      e.drawCard(myIndex);
+      e.currentPlayer = (e.currentPlayer + e.direction) % e.playerCount;
+      if (e.currentPlayer < 0) e.currentPlayer += e.playerCount;
+    });
   }
 
   @override
@@ -150,48 +126,64 @@ class _UnoGameScreenState extends State<UnoGameScreen> {
           Text('Tu pareja tiene $opponentCount carta${opponentCount == 1 ? '' : 's'}',
               style: const TextStyle(color: Colors.black54)),
           SizedBox(
-            height: 46,
+            height: 44,
             child: ListView(
               scrollDirection: Axis.horizontal,
               shrinkWrap: true,
               children: [
                 for (var i = 0; i < opponentCount; i++)
-                  const Padding(padding: EdgeInsets.symmetric(horizontal: 2), child: SpanishCardBack(width: 30)),
+                  const Padding(padding: EdgeInsets.symmetric(horizontal: 2), child: UnoCardBack(width: 28)),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          Text(myTurn ? 'Tu turno' : 'Esperando a tu pareja…', style: Theme.of(context).textTheme.titleMedium),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: Text(
+              myTurn ? 'Tu turno' : 'Esperando a tu pareja…',
+              key: ValueKey(myTurn),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
           const SizedBox(height: 16),
-          PopInCard(key: ValueKey(engine.topCard), child: _cardWidget(engine.topCard)),
+          PopInCard(key: ValueKey(engine.topCard), child: UnoCardFace(card: engine.topCard, width: 74)),
           const SizedBox(height: 8),
-          Text('Pozo: ${engine.drawPile.length} cartas'),
+          Text('Mazo: ${engine.drawPile.length} cartas', style: const TextStyle(color: Colors.black54)),
           const Spacer(),
           ElevatedButton.icon(
-            onPressed: myTurn
-                ? () => _controller.act((e) {
-                      e.drawCard(myIndex);
-                      if (e.playableCards(myIndex).isEmpty) {
-                        e.currentPlayer = (e.currentPlayer + e.direction) % e.playerCount;
-                        if (e.currentPlayer < 0) e.currentPlayer += e.playerCount;
-                      }
-                    })
-                : null,
+            onPressed: myTurn ? () => _drawAndPassTurn(myIndex) : null,
             icon: const Icon(Icons.download),
             label: const Text('Robar carta'),
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 100,
+            height: 110,
             child: ListView(
               scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
                 for (var i = 0; i < myHand.length; i++)
                   StaggeredEntrance(
                     index: i,
-                    child: _cardWidget(
-                      myHand[i],
-                      onTap: myTurn && engine.canPlay(myHand[i]) ? () => _play(myIndex, myHand[i]) : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      // Leve abanico: las cartas de las puntas se inclinan
+                      // y suben un poco menos que las del medio, como una
+                      // mano de cartas sostenida en la mano.
+                      child: Transform.translate(
+                        offset: Offset(0, (i - (myHand.length - 1) / 2).abs() * 3),
+                        child: Transform.rotate(
+                          angle: (i - (myHand.length - 1) / 2) * 0.05,
+                          child: GestureDetector(
+                            onTap: myTurn && engine.canPlay(myHand[i]) ? () => _play(myIndex, myHand[i]) : null,
+                            child: AnimatedScale(
+                              duration: const Duration(milliseconds: 150),
+                              scale: myTurn && engine.canPlay(myHand[i]) ? 1.0 : 0.94,
+                              child: UnoCardFace(card: myHand[i], width: 62),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
               ],

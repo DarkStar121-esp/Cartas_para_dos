@@ -18,7 +18,7 @@ class ProfileAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = _hexToColor(account.gender.defaultBackgroundHex);
+    final bgColor = account.gender.color;
     final equippedId = account.customization.equippedAnimalId;
     final banner = CustomizationCatalog.bannerById(account.customization.equippedBannerColorId);
     final font = CustomizationCatalog.fontById(account.customization.equippedFontId);

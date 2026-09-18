@@ -33,7 +33,6 @@ enum Rank {
 
 extension RankX on Rank {
   String get shortLabel => switch (this) {
-        Rank.uno => 'A',
         Rank.sota => 'S',
         Rank.caballo => 'C',
         Rank.rey => 'R',

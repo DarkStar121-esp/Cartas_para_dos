@@ -29,8 +29,8 @@ abstract class GameSessionRepository {
 ///  1) desarrollar y probar toda la UI de multijugador sin tener un
 ///     proyecto de Firebase todavía;
 ///  2) probar la lógica en un solo teléfono alternando de qué cuenta se
-///     está "logueado" (ver AppSession.devSwitchPerspective) — como el
-///     estado vive acá, las dos perspectivas ven la MISMA partida.
+///     está "logueado" (ver AppSession.devSignInAs / DevAccountSwitcherFab)
+///     — como el estado vive acá, las dos perspectivas ven la MISMA partida.
 ///
 /// NO sirve para jugar de verdad entre dos teléfonos distintos — para
 /// eso hay que usar [FirestoreGameSessionRepository] (o el backend que
