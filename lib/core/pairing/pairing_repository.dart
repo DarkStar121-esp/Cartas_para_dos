@@ -17,9 +17,13 @@ abstract class PairingRepository {
   Future<void> sendPairingRequest(dynamic myId, dynamic code);
   Stream<PairingRequest?> watchIncomingRequest(dynamic userId);
   Future<UserAccount?> findById(dynamic userId);
+  Future<dynamic> fetchCouple(dynamic coupleId);
 }
 
 class InMemoryPairingRepository implements PairingRepository {
+  final dynamic authService;
+  InMemoryPairingRepository([this.authService]);
+
   final _statusController = StreamController<PairingStatus>.broadcast();
 
   @override
@@ -51,4 +55,7 @@ class InMemoryPairingRepository implements PairingRepository {
 
   @override
   Future<UserAccount?> findById(dynamic userId) async => null;
+
+  @override
+  Future<dynamic> fetchCouple(dynamic coupleId) async => null;
 }
