@@ -13,6 +13,7 @@ abstract class PairingRepository {
   Future<void> rejectPairingRequest(PairingRequest request);
   Stream<UserAccount> discoverOnLocalNetwork();
   Future<UserAccount?> findById(String userId);
+  Future<dynamic> fetchCouple(String userId);
 }
 
 class FirestorePairingRepository implements PairingRepository {
@@ -62,7 +63,8 @@ class FirestorePairingRepository implements PairingRepository {
       return PairingRequest(
         id: snapshot.id,
         fromUserId: data['fromUserId'] ?? '',
-        fromUserName: data['fromUserName'] ?? 'Usuario',
+        fromUserName: data['fromUserName'] ?? data['fromName'] ?? 'Usuario',
+        code: data['code'] ?? '',
       );
     });
   }
@@ -100,13 +102,26 @@ class FirestorePairingRepository implements PairingRepository {
     final data = doc.data()!;
     return UserAccount(
       id: doc.id,
-      displayName: data['displayName'] ?? 'Usuario',
+      name: data['name'] ?? data['displayName'] ?? 'Usuario',
       email: data['email'] ?? '',
       gender: Gender.values.firstWhere(
         (g) => g.name == (data['gender'] ?? 'other'),
         orElse: () => Gender.other,
       ),
     );
+  }
+
+  @override
+  Future<dynamic> fetchCouple(String userId) async {
+    final query = await _firestore
+        .collection('couples')
+        .where('users', arrayContains: userId)
+        .limit(1)
+        .get();
+
+    if (query.docs.isEmpty) return null;
+    final doc = query.docs.first;
+    return doc.data();
   }
 }
 

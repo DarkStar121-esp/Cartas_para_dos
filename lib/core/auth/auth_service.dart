@@ -19,7 +19,7 @@ class FirebaseAuthService implements AuthService {
   Stream<UserAccount?> get userStream {
     return _auth.authStateChanges().asyncMap((fbUser) async {
       if (fbUser == null) return null;
-      return _getOrUpdateUserAccount(fbUser);
+      return await _getOrUpdateUserAccount(fbUser);
     });
   }
 
@@ -29,7 +29,7 @@ class FirebaseAuthService implements AuthService {
     if (fbUser == null) return null;
     return UserAccount(
       id: fbUser.uid,
-      displayName: fbUser.displayName ?? 'Usuario',
+      name: fbUser.displayName ?? 'Usuario',
       email: fbUser.email ?? '',
       gender: Gender.other,
     );
@@ -39,7 +39,7 @@ class FirebaseAuthService implements AuthService {
   Future<UserAccount> signInAnonymously() async {
     final cred = await _auth.signInAnonymously();
     final fbUser = cred.user!;
-    return _getOrUpdateUserAccount(fbUser);
+    return await _getOrUpdateUserAccount(fbUser);
   }
 
   Future<UserAccount> _getOrUpdateUserAccount(fb.User fbUser) async {
@@ -50,7 +50,7 @@ class FirebaseAuthService implements AuthService {
       final data = doc.data()!;
       return UserAccount(
         id: fbUser.uid,
-        displayName: data['displayName'] ?? 'Usuario',
+        name: data['name'] ?? data['displayName'] ?? 'Usuario',
         email: data['email'] ?? fbUser.email ?? '',
         gender: Gender.values.firstWhere(
           (g) => g.name == (data['gender'] ?? 'other'),
@@ -60,11 +60,12 @@ class FirebaseAuthService implements AuthService {
     } else {
       final newUser = UserAccount(
         id: fbUser.uid,
-        displayName: 'Usuario_${fbUser.uid.substring(0, 4)}',
+        name: 'Usuario_${fbUser.uid.substring(0, 4)}',
         email: fbUser.email ?? '',
         gender: Gender.other,
       );
       await docRef.set({
+        'name': newUser.name,
         'displayName': newUser.displayName,
         'email': newUser.email,
         'gender': newUser.gender.name,
