@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart0:async';
 import 'pairing_models.dart';
 import '../../models/user_account.dart';
 
@@ -7,8 +7,10 @@ abstract class PairingRepository {
   Future<PairingResult> pairWithCode(String code);
   Stream<PairingStatus> watchPairingStatus();
   Stream<UserAccount> discoverOnLocalNetwork();
-  Future<void> confirmPairing(dynamic pairingId);
-  Future<void> sendPairingRequest(String myId, String code);
+  Future<void> confirmPairing(dynamic pairingId, {dynamic relationshipType, dynamic type, String? id});
+  Future<void> sendPairingRequest(dynamic myId, dynamic code);
+  Stream<dynamic> watchIncomingRequest(dynamic userId);
+  Future<UserAccount?> findById(dynamic userId);
 }
 
 class InMemoryPairingRepository implements PairingRepository {
@@ -33,8 +35,14 @@ class InMemoryPairingRepository implements PairingRepository {
   Stream<UserAccount> discoverOnLocalNetwork() => const Stream.empty();
 
   @override
-  Future<void> confirmPairing(dynamic pairingId) async {}
+  Future<void> confirmPairing(dynamic pairingId, {dynamic relationshipType, dynamic type, String? id}) async {}
 
   @override
-  Future<void> sendPairingRequest(String myId, String code) async {}
+  Future<void> sendPairingRequest(dynamic myId, dynamic code) async {}
+
+  @override
+  Stream<dynamic> watchIncomingRequest(dynamic userId) => const Stream.empty();
+
+  @override
+  Future<UserAccount?> findById(dynamic userId) async => null;
 }
