@@ -74,6 +74,7 @@ class FirebaseAuthService implements AuthService {
           (g) => g.name == (data['gender'] ?? 'other'),
           orElse: () => Gender.other,
         ),
+        coupleId: data['coupleId'] as String?,
       );
     } catch (_) {
       return null;
@@ -97,6 +98,7 @@ class FirebaseAuthService implements AuthService {
       'displayName': account.displayName,
       'email': account.email,
       'gender': account.gender.name,
+      'coupleId': account.coupleId,
       'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
     return account;
@@ -110,6 +112,7 @@ class FirebaseAuthService implements AuthService {
         'displayName': a1.displayName,
         'email': a1.email,
         'gender': a1.gender.name,
+        'coupleId': a1.coupleId,
       }, SetOptions(merge: true));
     } else if (a1 is String && a2 != null) {
       await _firestore.collection('users').doc(a1).set(

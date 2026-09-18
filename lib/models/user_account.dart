@@ -5,6 +5,7 @@ class UserAccount {
   final String name;
   final String email;
   final Gender gender;
+  final String? coupleId;
 
   UserAccount({
     required this.id,
@@ -12,6 +13,7 @@ class UserAccount {
     String? displayName,
     this.email = '',
     this.gender = Gender.other,
+    this.coupleId,
   }) : name = name ?? displayName ?? 'Usuario';
 
   String get displayName => name;
@@ -23,6 +25,7 @@ class UserAccount {
       'displayName': displayName,
       'email': email,
       'gender': gender.name,
+      'coupleId': coupleId,
     };
   }
 }
