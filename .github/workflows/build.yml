@@ -8,9 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: parejas_app
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v3
@@ -28,4 +25,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: parejas_app/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
