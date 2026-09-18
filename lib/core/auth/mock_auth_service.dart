@@ -24,6 +24,7 @@ abstract class AuthService {
     String? id,
     String? displayName,
     String? pairingCode,
+    dynamic age,
   });
   Future<void> updateAccount([dynamic a1, dynamic a2]);
   Future<void> signOut();
@@ -98,8 +99,13 @@ class MockAuthService implements AuthService {
     String? id,
     String? displayName,
     String? pairingCode,
+    dynamic age,
   }) async {
     final uid = id ?? googleUid ?? 'user_${DateTime.now().millisecondsSinceEpoch}';
+    int? parsedAge;
+    if (age is int) parsedAge = age;
+    if (age is String) parsedAge = int.tryParse(age);
+
     final account = UserAccount(
       id: uid,
       name: name ?? fullName ?? displayName ?? (firstName != null ? '$firstName ${lastName ?? ""}'.trim() : 'Usuario'),
@@ -110,6 +116,7 @@ class MockAuthService implements AuthService {
       coupleId: coupleId,
       googleUid: googleUid ?? uid,
       pairingCode: pairingCode,
+      age: parsedAge,
     );
     _accounts.add(account);
     _currentUser = account;

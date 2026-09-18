@@ -10,6 +10,7 @@ class UserAccount {
   final String? coupleId;
   final String? customGoogleUid;
   final String? customPairingCode;
+  final int? age;
 
   UserAccount({
     required this.id,
@@ -23,6 +24,7 @@ class UserAccount {
     String? googleUid,
     String? pairingCode,
     String? fullName,
+    this.age,
   })  : customFirstName = firstName,
         name = name ?? fullName ?? displayName ?? (firstName != null ? '$firstName ${lastName ?? ""}'.trim() : 'Usuario'),
         customGoogleUid = googleUid,
@@ -46,6 +48,7 @@ class UserAccount {
       'coupleId': coupleId,
       'googleUid': googleUid,
       'pairingCode': pairingCode,
+      'age': age,
     };
   }
 }

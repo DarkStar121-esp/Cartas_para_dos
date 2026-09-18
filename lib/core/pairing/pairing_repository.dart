@@ -22,7 +22,7 @@ class PairingRepository {
   Future<Couple?> fetchCouple([dynamic a1]) async => null;
   Future<UserAccount?> findById([dynamic a1]) async => null;
   Future<String> generatePairingCode([dynamic a1]) async => '123456';
-  Stream<dynamic> watchIncomingRequest([dynamic a1]) => Stream.value(null);
+  Stream<PairingRequest?> watchIncomingRequest([dynamic a1]) => Stream<PairingRequest?>.value(null);
   Future<void> acceptPairingRequest([dynamic a1]) async {}
   Future<void> rejectPairingRequest([dynamic a1]) async {}
 }
