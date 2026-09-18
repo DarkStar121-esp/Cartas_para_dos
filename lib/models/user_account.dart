@@ -38,6 +38,38 @@ class UserAccount {
   String get googleUid => customGoogleUid ?? id;
   String get pairingCode => customPairingCode ?? (id.length >= 6 ? id.substring(0, 6) : id);
 
+  UserAccount copyWith({
+    String? id,
+    String? name,
+    String? displayName,
+    String? firstName,
+    String? lastName,
+    String? email,
+    Gender? gender,
+    String? coupleId,
+    String? googleUid,
+    String? pairingCode,
+    String? fullName,
+    int? age,
+    dynamic customization,
+  }) {
+    return UserAccount(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      displayName: displayName ?? this.displayName,
+      firstName: firstName ?? this.customFirstName,
+      lastName: lastName ?? this.lastName,
+      email: email ?? this.email,
+      gender: gender ?? this.gender,
+      coupleId: coupleId ?? this.coupleId,
+      googleUid: googleUid ?? this.googleUid,
+      pairingCode: pairingCode ?? this.pairingCode,
+      fullName: fullName ?? this.fullName,
+      age: age ?? this.age,
+      customization: customization ?? this.customization,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
