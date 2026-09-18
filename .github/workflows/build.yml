@@ -10,15 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Ubicar carpeta del proyecto Flutter
+        run: |
+          TARGET_DIR=$(find . -maxdepth 3 -name "pubspec.yaml" -exec dirname {} \; | head -n 1)
+          echo "PROJECT_PATH=$TARGET_DIR" >> $GITHUB_ENV
+
       - uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
+
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-      - run: flutter pub get
-      - name: Generar Keystore e Imprimir SHA1 y SHA256
+
+      - name: Generar Keystore e Imprimir SHA
         run: |
           mkdir -p ~/.android
           keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
@@ -27,8 +34,19 @@ jobs:
           echo "=================================================="
           keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
           echo "=================================================="
-      - run: flutter build apk --debug
+
+      - name: Generar carpeta Android y dependencias
+        run: |
+          cd ${{ env.PROJECT_PATH }}
+          flutter create . --platforms android
+          flutter pub get
+
+      - name: Compilar APK Debug
+        run: |
+          cd ${{ env.PROJECT_PATH }}
+          flutter build apk --debug
+
       - uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: "**/build/app/outputs/flutter-apk/app-debug.apk"
