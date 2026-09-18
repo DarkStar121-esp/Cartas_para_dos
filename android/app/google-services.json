@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "860001616686",
+    "project_id": "parejasapp-4fec8",
+    "storage_bucket": "parejasapp-4fec8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:860001616686:android:7073d34f566c7fdc7270bf",
+        "android_client_info": {
+          "package_name": "com.example.parejas_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "860001616686-b01dgog079esiveuc1d3ab8mvdgd2h8c.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.parejas_app",
+            "certificate_hash": "18b2735a690a75278b5678731334761ac3da8b25"
+          }
+        },
+        {
+          "client_id": "860001616686-tl66quhhgn2noh64op7041t6067rv9mt.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.parejas_app",
+            "certificate_hash": "3ab4aef82beb0c5966d15f243f5341bedff57846"
+          }
+        },
+        {
+          "client_id": "860001616686-1hbq5a787kid8igqeqb117mbmgv10k1h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6-TLl1cfA-pMxa34tDJ9Stn4XXYKGivQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "860001616686-1hbq5a787kid8igqeqb117mbmgv10k1h.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
