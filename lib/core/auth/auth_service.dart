@@ -8,6 +8,10 @@ abstract class AuthService {
   Stream<UserAccount?> get userStream;
   UserAccount? get currentUser;
   Future<UserAccount> signInAnonymously();
+  Future<dynamic> signInWithGoogle();
+  Future<UserAccount?> fetchAccount(String userId);
+  Future<UserAccount> createAccount(dynamic a1, [dynamic a2, dynamic a3]);
+  Future<void> updateAccount(dynamic a1, [dynamic a2]);
   Future<void> signOut();
 }
 
@@ -19,7 +23,7 @@ class FirebaseAuthService implements AuthService {
   Stream<UserAccount?> get userStream {
     return _auth.authStateChanges().asyncMap((fbUser) async {
       if (fbUser == null) return null;
-      return await _getOrUpdateUserAccount(fbUser);
+      return await fetchAccount(fbUser.uid);
     });
   }
 
@@ -39,39 +43,79 @@ class FirebaseAuthService implements AuthService {
   Future<UserAccount> signInAnonymously() async {
     final cred = await _auth.signInAnonymously();
     final fbUser = cred.user!;
-    return await _getOrUpdateUserAccount(fbUser);
+    final existing = await fetchAccount(fbUser.uid);
+    if (existing != null) return existing;
+    final newUser = UserAccount(
+      id: fbUser.uid,
+      name: 'Usuario_${fbUser.uid.substring(0, 4)}',
+      email: fbUser.email ?? '',
+      gender: Gender.other,
+    );
+    await createAccount(newUser);
+    return newUser;
   }
 
-  Future<UserAccount> _getOrUpdateUserAccount(fb.User fbUser) async {
-    final docRef = _firestore.collection('users').doc(fbUser.uid);
-    final doc = await docRef.get();
+  @override
+  Future<dynamic> signInWithGoogle() async {
+    return await signInAnonymously();
+  }
 
-    if (doc.exists && doc.data() != null) {
+  @override
+  Future<UserAccount?> fetchAccount(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (!doc.exists || doc.data() == null) return null;
       final data = doc.data()!;
       return UserAccount(
-        id: fbUser.uid,
+        id: doc.id,
         name: data['name'] ?? data['displayName'] ?? 'Usuario',
-        email: data['email'] ?? fbUser.email ?? '',
+        email: data['email'] ?? '',
         gender: Gender.values.firstWhere(
           (g) => g.name == (data['gender'] ?? 'other'),
           orElse: () => Gender.other,
         ),
       );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<UserAccount> createAccount(dynamic a1, [dynamic a2, dynamic a3]) async {
+    UserAccount account;
+    if (a1 is UserAccount) {
+      account = a1;
     } else {
-      final newUser = UserAccount(
-        id: fbUser.uid,
-        name: 'Usuario_${fbUser.uid.substring(0, 4)}',
-        email: fbUser.email ?? '',
-        gender: Gender.other,
+      account = UserAccount(
+        id: a1?.toString() ?? _auth.currentUser?.uid ?? 'unknown',
+        name: a2?.toString() ?? 'Usuario',
+        email: a3?.toString() ?? '',
       );
-      await docRef.set({
-        'name': newUser.name,
-        'displayName': newUser.displayName,
-        'email': newUser.email,
-        'gender': newUser.gender.name,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      return newUser;
+    }
+    await _firestore.collection('users').doc(account.id).set({
+      'name': account.name,
+      'displayName': account.displayName,
+      'email': account.email,
+      'gender': account.gender.name,
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    return account;
+  }
+
+  @override
+  Future<void> updateAccount(dynamic a1, [dynamic a2]) async {
+    if (a1 is UserAccount) {
+      await _firestore.collection('users').doc(a1.id).set({
+        'name': a1.name,
+        'displayName': a1.displayName,
+        'email': a1.email,
+        'gender': a1.gender.name,
+      }, SetOptions(merge: true));
+    } else if (a1 is String && a2 != null) {
+      await _firestore.collection('users').doc(a1).set(
+        a2 is Map<String, dynamic> ? a2 : {'data': a2},
+        SetOptions(merge: true),
+      );
     }
   }
 
