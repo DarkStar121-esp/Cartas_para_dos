@@ -20,6 +20,15 @@ jobs:
         with:
           channel: 'stable'
 
+      - name: Reparar estructura y generar carpeta Android nativa
+        run: |
+          if [ ! -f "pubspec.yaml" ] && [ -f "parejas_app/pubspec.yaml" ]; then
+            mv parejas_app/* . 2>/dev/null || true
+          fi
+          if [ ! -d "android" ]; then
+            flutter create . --platforms=android --org com.parejasapp
+          fi
+
       - name: Obtener dependencias
         run: flutter pub get
 
@@ -27,7 +36,7 @@ jobs:
         run: flutter build apk --release --no-tree-shake-icons
 
       - name: Imprimir Huellas Digitales
-        run: keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk
+        run: keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk || true
 
       - uses: actions/upload-artifact@v4
         with:
