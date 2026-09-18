@@ -17,4 +17,6 @@ enum Gender {
         return Colors.purpleAccent;
     }
   }
+
+  String get defaultBackgroundHex => '#E0E0E0';
 }
