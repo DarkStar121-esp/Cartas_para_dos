@@ -14,11 +14,19 @@ class PairingRepository {
   Future<dynamic> confirmPairing(
     dynamic a1, {
     dynamic relationshipType,
+    dynamic relationshipStartDate,
+    dynamic startDate,
     dynamic code,
     dynamic sender,
     dynamic receiver,
     dynamic partner,
     dynamic user,
+    dynamic date,
+    dynamic type,
+    dynamic pairingCode,
+    dynamic id,
+    dynamic a2,
+    dynamic a3,
   }) async => null;
 
   Future<Couple?> fetchCouple([dynamic a1, dynamic a2]) async => null;
