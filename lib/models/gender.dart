@@ -5,14 +5,16 @@ enum Gender {
   female,
   nonBinary,
   other,
-  preferNotToSay,
-}
+  preferNotToSay;
 
-extension GenderColorFix on Gender {
   Color get color {
-    final str = toString().toLowerCase();
-    if (str.contains('female') || str.contains('mujer')) return Colors.pinkAccent;
-    if (str.contains('male') || str.contains('hombre')) return Colors.blueAccent;
-    return Colors.purpleAccent;
+    switch (this) {
+      case Gender.female:
+        return Colors.pinkAccent;
+      case Gender.male:
+        return Colors.blueAccent;
+      default:
+        return Colors.purpleAccent;
+    }
   }
 }
