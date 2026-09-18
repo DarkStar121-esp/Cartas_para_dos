@@ -1,27 +1,29 @@
-enum PairingRequestStatus { pending, accepted, expired }
+import '../../models/relationship_type.dart';
 
-/// Una solicitud de conexión entre dos cuentas. Vive en el backend
-/// (Firestore) hasta que el destinatario la confirma o expira.
+enum PairingStatus { none, pending, paired }
+
 class PairingRequest {
   final String id;
   final String fromUserId;
-  final String toPairingCode;
+  final String fromUserName;
+  final String code;
   final DateTime createdAt;
-  final PairingRequestStatus status;
 
-  const PairingRequest({
+  PairingRequest({
     required this.id,
     required this.fromUserId,
-    required this.toPairingCode,
-    required this.createdAt,
-    this.status = PairingRequestStatus.pending,
-  });
+    required this.fromUserName,
+    required this.code,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+}
 
-  PairingRequest copyWith({PairingRequestStatus? status}) => PairingRequest(
-        id: id,
-        fromUserId: fromUserId,
-        toPairingCode: toPairingCode,
-        createdAt: createdAt,
-        status: status ?? this.status,
-      );
+class PairingResult {
+  final bool isSuccess;
+  final String? errorMessage;
+
+  PairingResult({required this.isSuccess, this.errorMessage});
+
+  factory PairingResult.success() => PairingResult(isSuccess: true);
+  factory PairingResult.failure(String message) => PairingResult(isSuccess: false, errorMessage: message);
 }
