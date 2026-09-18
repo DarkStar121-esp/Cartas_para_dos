@@ -10,35 +10,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
-
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-
-      - name: Reparar estructura y generar carpeta Android nativa
+      - run: flutter pub get
+      - name: Generar Keystore e Imprimir SHA1 y SHA256
         run: |
-          if [ ! -f "pubspec.yaml" ] && [ -f "parejas_app/pubspec.yaml" ]; then
-            mv parejas_app/* . 2>/dev/null || true
-          fi
-          if [ ! -d "android" ]; then
-            flutter create . --platforms=android --org com.parejasapp
-          fi
-
-      - name: Obtener dependencias
-        run: flutter pub get
-
-      - name: Compilar APK
-        run: flutter build apk --release --no-tree-shake-icons
-
-      - name: Imprimir Huellas Digitales
-        run: keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk || true
-
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          echo "=================================================="
+          echo "HUELLAS DIGITALES (SHA-1 Y SHA-256):"
+          echo "=================================================="
+          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
+          echo "=================================================="
+      - run: flutter build apk --debug
       - uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: app-debug
+          path: build/app/outputs/flutter-apk/app-debug.apk
