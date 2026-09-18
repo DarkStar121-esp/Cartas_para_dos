@@ -15,11 +15,15 @@ abstract class AuthService {
   Future<UserAccount> createAccount({
     String? googleUid,
     String? name,
+    String? firstName,
+    String? lastName,
+    String? fullName,
     String? email,
     Gender? gender,
     String? coupleId,
     String? id,
     String? displayName,
+    String? pairingCode,
   });
   Future<void> updateAccount([dynamic a1, dynamic a2]);
   Future<void> signOut();
@@ -85,20 +89,27 @@ class MockAuthService implements AuthService {
   Future<UserAccount> createAccount({
     String? googleUid,
     String? name,
+    String? firstName,
+    String? lastName,
+    String? fullName,
     String? email,
     Gender? gender,
     String? coupleId,
     String? id,
     String? displayName,
+    String? pairingCode,
   }) async {
     final uid = id ?? googleUid ?? 'user_${DateTime.now().millisecondsSinceEpoch}';
     final account = UserAccount(
       id: uid,
-      name: name ?? displayName ?? 'Usuario',
+      name: name ?? fullName ?? displayName ?? (firstName != null ? '$firstName ${lastName ?? ""}'.trim() : 'Usuario'),
+      firstName: firstName,
+      lastName: lastName,
       email: email ?? '',
       gender: gender ?? Gender.other,
       coupleId: coupleId,
       googleUid: googleUid ?? uid,
+      pairingCode: pairingCode,
     );
     _accounts.add(account);
     _currentUser = account;
