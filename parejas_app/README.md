@@ -1,0 +1,123 @@
+# Cartas para dos
+
+App de juegos de cartas para parejas: clásicos (UNO, Chinchón, Escoba del 15,
+Truco) + juegos de conexión (En Palabras, Conectados, Climax Club).
+
+## Requisitos
+
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) 3.22+
+- Android Studio (o solo el Android SDK vía command-line tools) para compilar el APK
+- Un dispositivo/emulador Android, o `flutter run -d chrome` para probar en el navegador mientras desarrollás
+
+## Correr en desarrollo
+
+```bash
+flutter pub get
+flutter run
+```
+
+## Generar el .apk
+
+```bash
+flutter build apk --release
+# el archivo queda en build/app/outputs/flutter-apk/app-release.apk
+```
+
+Si no querés instalar Android Studio localmente, podés compilar en la nube con
+[Codemagic](https://codemagic.io) o [EAS Build](https://docs.expo.dev/build/introduction/)
+(este último es de Expo/React Native, no aplica si te quedás con Flutter — para
+Flutter, Codemagic tiene un free tier y es la opción más directa).
+
+## Probar la app de punta a punta (sin Firebase)
+
+Desde `flutter run`, la app arranca en la pantalla de login, no en el
+catálogo de juegos — ese cambió de lugar (ver MULTIPLAYER.md sección 1).
+Con el backend en memoria (`MockAuthService` + `InMemoryPairingRepository`
++ `InMemoryGameSessionRepository`, ya cableados en `main.dart`) se puede
+recorrer TODO el flujo desde un solo dispositivo:
+
+1. Tocar "Continuar con Google" (no abre nada real, genera una cuenta de
+   prueba al toque) y completar el alta.
+2. En la pantalla de pairing, tocar el botón flotante 🐛 (abajo a la
+   derecha, solo visible en modo debug) → "Crear cuenta de prueba nueva".
+   Guardar o anotar el código que le tocó a esa segunda cuenta.
+3. Tocar "Ingresar el código de mi pareja", pegar ese código y enviar.
+4. Tocar 🐛 de nuevo y saltar a la cuenta de prueba recién creada — ahí
+   va a aparecer la solicitud pendiente con el aviso de irreversibilidad.
+   Aceptar y completar los datos de la relación.
+5. Ya emparejados: se puede seguir usando 🐛 para saltar entre las dos
+   cuentas en cualquier momento, incluso en medio de una partida, y
+   revisar ambas perspectivas del multijugador (mi mano / la de mi
+   pareja, quién tiene el turno, los cantos de Truco, etc).
+
+Nada de esto reemplaza probar con dos celulares reales una vez conectado
+Firebase — es solo para revisar la UI y la integración sin desplegar nada.
+
+## Conectar Firebase (multijugador por internet)
+
+La app corre por default con todo en memoria (`MockAuthService` +
+`InMemoryPairingRepository` + `InMemoryGameSessionRepository`, sin
+conexión a internet) — así se puede desarrollar y revisar toda la UI sin
+depender de un proyecto de Firebase.
+
+Las implementaciones reales (`FirebaseAuthService`,
+`FirestorePairingRepository`, `FirestoreGameSessionRepository`) ya están
+escritas. Conectarlas es correr los pasos de **`FIREBASE_SETUP.md`** y
+después cambiar un solo interruptor:
+
+```dart
+// lib/main.dart
+const bool useFirebase = true; // estaba en false
+```
+
+Ver `FIREBASE_SETUP.md` para la guía completa (proyecto de Firebase,
+Google Sign-In, `flutterfire configure`, reglas de seguridad de
+Firestore, y cómo probarlo con dos celulares reales) y `MULTIPLAYER.md`
+para el detalle de cómo encajan las piezas por dentro.
+
+## Cartas ilustradas
+
+Truco y Chinchón comparten la baraja española (`lib/games/shared/spanish_deck.dart`)
+y el mismo widget de carta (`lib/widgets/cards/spanish_card_face.dart`). El
+dibujo de cada carta (palos, pips, figuras) está hecho con `CustomPainter` —
+o sea, es arte vectorial propio generado en código, no imágenes bajadas de
+internet. Eso evita cualquier problema de derechos de autor con mazos
+españoles existentes (Fournier y similares) y además hace que las cartas
+se vean nítidas en cualquier tamaño de pantalla sin pesar nada en assets.
+Las animaciones (`lib/widgets/cards/card_animations.dart`) son igual de
+reutilizables: flip 3D al robar, entrada escalonada al repartir la mano, y
+un "pop" de escala al jugar una carta a la mesa.
+
+## Estado actual
+
+| Juego | Estado |
+|---|---|
+| UNO | ✅ Jugable — multijugador real entre 2 celulares (ver MULTIPLAYER.md) |
+| En Palabras | ✅ Jugable — multijugador con roles (describe/adivina) |
+| Chinchón | ✅ Jugable — multijugador; simplificaciones en el header de `chinchon_engine.dart` |
+| Truco | ✅ Jugable — multijugador 1 contra 1; envido/truco simplificados, sin Flor, ver header de `truco_engine.dart` |
+| Escoba del 15 | 🚧 Módulo registrado, falta motor de reglas |
+| Conectados | 🚧 Módulo registrado, falta contenido y pantalla |
+| Climax Club | 🚧 Módulo registrado, falta contenido y pantalla |
+| Login (Google) + alta de cuenta | ✅ Flujo completo; `FirebaseAuthService` ya escrita, falta tu proyecto de Firebase (ver FIREBASE_SETUP.md) |
+| Pairing (código / WiFi) | ✅ Flujo completo (solicitud → aviso irreversible → confirmación); código manual y descubrimiento por WiFi (broadcast UDP real, `LocalNetworkDiscoveryService`) los dos funcionan |
+| Multijugador (sincronización entre celulares) | ✅ Arquitectura completa (`GameSyncController` + `FirestoreGameSessionRepository`), ver MULTIPLAYER.md; falta prender `useFirebase = true` con tu proyecto conectado |
+| Perfil (ver progresión) | ✅ Pantalla completa: avatares, nivel/XP/racha, victorias/apodos, acceso a personalización |
+| Progresión (XP, niveles, racha) | ✅ Lógica pura completa y testeable (`XpService`); falta el cron server-side |
+| Personalización (avatares/fuentes/banners) | ✅ Modelo + UI completos; faltan los assets de arte de los animales |
+| Victorias/derrotas y apodos | ✅ Lógica completa (`NicknameService`) + widget (`CoupleStatusCard`) |
+
+## Cómo agregar un juego nuevo
+
+1. Creá una carpeta en `lib/games/classic/` o `lib/games/couples/`.
+2. Si el juego tiene reglas de mesa, separá la lógica pura (sin Flutter) en un
+   `*_engine.dart`, como `uno_engine.dart`. Esto te permite testearlo sin UI.
+3. Si el juego usa mazos de contenido (preguntas, frases), poné los datos en
+   un JSON dentro de `assets/data/` y cargalo con un `*_deck.dart`, como
+   `en_palabras_deck.dart`. Así podés editar/agregar cartas sin tocar Dart.
+4. Armá la pantalla (`*_screen.dart`) que consume el engine o el deck.
+5. Creá el `*_module.dart` implementando `GameModule` (ver `core/game_module.dart`).
+6. Agregalo a la lista en `core/game_registry.dart`. Listo, ya aparece en el catálogo.
+
+Ver `ARCHITECTURE.md` para las decisiones de fondo (por qué Flutter, manejo de
+estado, contenido adulto, roadmap de multijugador online, etc).

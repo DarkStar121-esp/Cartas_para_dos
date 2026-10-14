@@ -1,0 +1,12 @@
+[
+  { "word": "PLAYA", "forbidden": ["ARENA", "MAR", "SOL", "VERANO"] },
+  { "word": "CUMPLEAÑOS", "forbidden": ["TORTA", "REGALO", "VELAS", "FIESTA"] },
+  { "word": "PIZZA", "forbidden": ["QUESO", "MASA", "ITALIA", "COMIDA"] },
+  { "word": "GUITARRA", "forbidden": ["CUERDAS", "MÚSICA", "TOCAR", "BANDA"] },
+  { "word": "NETFLIX", "forbidden": ["SERIE", "PELÍCULA", "PANTALLA", "STREAMING"] },
+  { "word": "AEROPUERTO", "forbidden": ["AVIÓN", "VIAJE", "VALIJA", "VUELO"] },
+  { "word": "MATE", "forbidden": ["YERBA", "BOMBILLA", "TERMO", "ARGENTINA"] },
+  { "word": "CASAMIENTO", "forbidden": ["NOVIA", "ANILLO", "IGLESIA", "FIESTA"] },
+  { "word": "GIMNASIO", "forbidden": ["PESAS", "EJERCICIO", "CUERPO", "ENTRENAR"] },
+  { "word": "LLUVIA", "forbidden": ["PARAGUAS", "NUBE", "AGUA", "MOJADO"] }
+]

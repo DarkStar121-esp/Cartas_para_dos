@@ -1,0 +1,84 @@
+rules_version = '2';
+
+// Reglas de seguridad de Firestore para "Cartas para dos".
+// Se suben desde Firebase Console → Firestore Database → Reglas, o con
+// `firebase deploy --only firestore:rules` si usás el CLI.
+//
+// Principio general: cada quien puede leer/escribir su propia cuenta,
+// leer la cuenta de su pareja (para mostrar su avatar/progresión), y
+// leer/escribir la pareja y las partidas donde participa — nada más.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isMe(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // users/{uid} — uid == UserAccount.id == googleUid, los tres son el
+    // mismo valor (ver FirebaseAuthService).
+    match /users/{userId} {
+      // Cualquier usuario logueado puede LEER cualquier cuenta — hace
+      // falta para poder buscar por pairingCode antes de estar
+      // emparejado, y para ver el perfil de la pareja después. Nada acá
+      // es información sensible (nombre, edad, sexo, personalización).
+      allow read: if isSignedIn();
+
+      // Pero solo yo puedo escribir MI cuenta.
+      allow create: if isMe(userId);
+      allow update: if isMe(userId)
+        // ... salvo el caso de confirmar un pairing: ahí quien escribe
+        // coupleId en la cuenta de la OTRA persona es una Cloud
+        // Function o una transacción del lado del que confirma. Como
+        // Firestore no puede distinguir fácilmente "solo cambió
+        // coupleId" en reglas simples, la alternativa más segura es
+        // mover confirmPairing a una Cloud Function con Admin SDK (que
+        // se salta las reglas) en vez de dejar que el cliente escriba
+        // la cuenta ajena directo. Ver la nota al final de este archivo.
+        || isSignedIn();
+      allow delete: if false;
+    }
+
+    // pairing_requests/{id}
+    match /pairing_requests/{requestId} {
+      allow read: if isSignedIn();
+      allow create: if isMe(request.resource.data.fromUserId);
+      allow update: if isSignedIn(); // ver misma nota que arriba
+      allow delete: if false;
+    }
+
+    // couples/{coupleId}
+    match /couples/{coupleId} {
+      allow read: if isSignedIn()
+        && (resource.data.user1Id == request.auth.uid || resource.data.user2Id == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update: if isSignedIn()
+        && (resource.data.user1Id == request.auth.uid || resource.data.user2Id == request.auth.uid);
+      allow delete: if false;
+    }
+
+    // game_sessions/{coupleId}_{gameId}
+    match /game_sessions/{sessionId} {
+      allow read, write: if isSignedIn()
+        && exists(/databases/$(database)/documents/couples/$(resource.data.coupleId))
+        && get(/databases/$(database)/documents/couples/$(resource.data.coupleId)).data.keys().hasAny(['user1Id', 'user2Id'])
+        && (
+          get(/databases/$(database)/documents/couples/$(resource.data.coupleId)).data.user1Id == request.auth.uid
+          || get(/databases/$(database)/documents/couples/$(resource.data.coupleId)).data.user2Id == request.auth.uid
+        );
+      allow create: if isSignedIn();
+    }
+  }
+}
+
+// NOTA sobre "escribir la cuenta de mi pareja": estas reglas son un
+// punto de partida honesto, no 100% blindado — dejan que cualquier
+// usuario logueado actualice cualquier cuenta ajena (para no bloquear
+// el flujo real de pairing/intercambios, que hoy el cliente resuelve
+// directo contra Firestore). Antes de publicar la app en serio,
+// conviene mover esas operaciones puntuales (confirmPairing, aceptar un
+// intercambio de animales) a Cloud Functions con el Admin SDK, y ahí sí
+// cerrar `allow update` de `users` a `isMe(userId)` únicamente.
